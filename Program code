@@ -1,0 +1,567 @@
+#include "LiquidCrystal_I2C.h"
+
+// =================================================
+// PINS
+// =================================================
+
+#define C1 A0
+#define C2 A1
+#define C3 A2
+
+#define TEMP D5
+
+#define CHARGE_BTN D2
+#define DISCHARGE_BTN D3
+
+#define CHARGE_LED D11
+#define DISCHARGE_LED D10
+#define FAULT_LED D9
+
+
+// =================================================
+// LCD
+// =================================================
+
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+
+
+// =================================================
+// BMS LIMITS
+// =================================================
+
+#define OV 4200
+#define UV 3000
+#define IMBALANCE 200
+
+
+// =================================================
+// BMS STATES
+// =================================================
+
+#define SAFE 0
+#define CHARGE 1
+#define DISCHARGE 2
+#define FAULT 3
+
+byte state = SAFE;
+
+
+// =================================================
+// VARIABLES
+// =================================================
+
+int v1;
+int v2;
+int v3;
+
+int tempC;
+int soc;
+int imbalance;
+
+bool ovFault;
+bool uvFault;
+bool tempFault;
+bool balanceFault;
+
+
+// =================================================
+// LCD VARIABLES
+// =================================================
+
+unsigned long lastLCD = 0;
+byte page = 0;
+
+
+// =================================================
+// LED BLINK VARIABLES
+// =================================================
+
+unsigned long lastBlink = 0;
+bool greenBlink = false;
+
+
+// =================================================
+// SETUP
+// =================================================
+
+void setup()
+{
+  // Buttons
+  pinMode(CHARGE_BTN, INPUT_PULLUP);
+  pinMode(DISCHARGE_BTN, INPUT_PULLUP);
+
+  // LEDs
+  pinMode(CHARGE_LED, OUTPUT);
+  pinMode(DISCHARGE_LED, OUTPUT);
+  pinMode(FAULT_LED, OUTPUT);
+
+  // Initially OFF
+  digitalWrite(CHARGE_LED, LOW);
+  digitalWrite(DISCHARGE_LED, LOW);
+  digitalWrite(FAULT_LED, LOW);
+
+  // Serial Monitor
+  Serial.begin(115200);
+
+  // 12-bit ADC
+  analogReadResolution(12);
+
+  // LCD
+  lcd.init();
+  lcd.backlight();
+
+  lcd.clear();
+
+  lcd.setCursor(0, 0);
+  lcd.print("MINI 3-CELL BMS");
+
+  lcd.setCursor(0, 1);
+  lcd.print("STM32 C031C6");
+
+  delay(1500);
+}
+
+
+// =================================================
+// MAIN LOOP
+// =================================================
+
+void loop()
+{
+  readCells();
+
+  readTemperature();
+
+  checkFaults();
+
+  updateState();
+
+  updateLEDs();
+
+  updateLCD();
+
+  delay(100);
+}
+
+
+// =================================================
+// READ 3 CELL VOLTAGES
+// =================================================
+
+void readCells()
+{
+  /*
+     Potentiometer:
+     0V   -> 0mV
+     3.3V -> 4200mV
+  */
+
+  v1 = analogRead(C1) * 4200L / 4095;
+
+  v2 = analogRead(C2) * 4200L / 4095;
+
+  v3 = analogRead(C3) * 4200L / 4095;
+
+
+  // Find highest cell voltage
+
+  int highest = v1;
+
+  if (v2 > highest)
+    highest = v2;
+
+  if (v3 > highest)
+    highest = v3;
+
+
+  // Find lowest cell voltage
+
+  int lowest = v1;
+
+  if (v2 < lowest)
+    lowest = v2;
+
+  if (v3 < lowest)
+    lowest = v3;
+
+
+  // Cell voltage difference
+
+  imbalance = highest - lowest;
+
+
+  // Average cell voltage
+
+  int average = (v1 + v2 + v3) / 3;
+
+
+  // Simple SOC calculation
+  // 3.0V = 0%
+  // 4.2V = 100%
+
+  soc = (average - 3000) * 100L / 1200;
+
+
+  if (soc < 0)
+    soc = 0;
+
+  if (soc > 100)
+    soc = 100;
+}
+
+
+// =================================================
+// TEMPERATURE
+// =================================================
+
+void readTemperature()
+{
+  /*
+     Compact NTC approximation.
+
+     Normal temperature is approximately 25°C.
+  */
+
+  int a = analogRead(TEMP);
+
+  tempC = 25 - ((a - 2048) / 80);
+
+
+  if (tempC < -20)
+    tempC = -20;
+
+  if (tempC > 100)
+    tempC = 100;
+}
+
+
+// =================================================
+// FAULT CHECK
+// =================================================
+
+void checkFaults()
+{
+  // Reset faults
+
+  ovFault = false;
+  uvFault = false;
+  tempFault = false;
+  balanceFault = false;
+
+
+  // -------------------------
+  // OVER VOLTAGE
+  // -------------------------
+
+  if (v1 > OV ||
+      v2 > OV ||
+      v3 > OV)
+  {
+    ovFault = true;
+  }
+
+
+  // -------------------------
+  // UNDER VOLTAGE
+  // -------------------------
+
+  if (v1 < UV ||
+      v2 < UV ||
+      v3 < UV)
+  {
+    uvFault = true;
+  }
+
+
+  // -------------------------
+  // OVER TEMPERATURE
+  // -------------------------
+
+  if (tempC > 45)
+  {
+    tempFault = true;
+  }
+
+
+  // -------------------------
+  // CELL IMBALANCE
+  // -------------------------
+
+  if (imbalance > IMBALANCE)
+  {
+    balanceFault = true;
+  }
+}
+
+
+// =================================================
+// STATE MACHINE
+// =================================================
+
+void updateState()
+{
+  // Any fault = FAULT state
+
+  if (ovFault ||
+      uvFault ||
+      tempFault ||
+      balanceFault)
+  {
+    state = FAULT;
+    return;
+  }
+
+
+  // Charge button pressed
+
+  if (digitalRead(CHARGE_BTN) == LOW)
+  {
+    state = CHARGE;
+  }
+
+
+  // Discharge button pressed
+
+  else if (digitalRead(DISCHARGE_BTN) == LOW)
+  {
+    state = DISCHARGE;
+  }
+
+
+  // No button pressed
+
+  else
+  {
+    state = SAFE;
+  }
+}
+
+
+// =================================================
+// LED CONTROL
+// =================================================
+
+void updateLEDs()
+{
+  // =================================================
+  // SAFE = GREEN BLINKING
+  // =================================================
+
+  if (state == SAFE)
+  {
+    digitalWrite(DISCHARGE_LED, LOW);
+
+    digitalWrite(FAULT_LED, LOW);
+
+
+    if (millis() - lastBlink >= 500)
+    {
+      lastBlink = millis();
+
+      greenBlink = !greenBlink;
+
+      digitalWrite(CHARGE_LED, greenBlink);
+    }
+  }
+
+
+  // =================================================
+  // CHARGE = GREEN ON
+  // =================================================
+
+  else if (state == CHARGE)
+  {
+    digitalWrite(CHARGE_LED, HIGH);
+
+    digitalWrite(DISCHARGE_LED, LOW);
+
+    digitalWrite(FAULT_LED, LOW);
+
+    greenBlink = false;
+  }
+
+
+  // =================================================
+  // DISCHARGE = BLUE ON
+  // =================================================
+
+  else if (state == DISCHARGE)
+  {
+    digitalWrite(CHARGE_LED, LOW);
+
+    digitalWrite(DISCHARGE_LED, HIGH);
+
+    digitalWrite(FAULT_LED, LOW);
+
+    greenBlink = false;
+  }
+
+
+  // =================================================
+  // FAULT = RED ON
+  // =================================================
+
+  else if (state == FAULT)
+  {
+    digitalWrite(CHARGE_LED, LOW);
+
+    digitalWrite(DISCHARGE_LED, LOW);
+
+    digitalWrite(FAULT_LED, HIGH);
+
+    greenBlink = false;
+  }
+}
+
+
+// =================================================
+// LCD DISPLAY
+// =================================================
+
+void updateLCD()
+{
+  // Change LCD page every 1.5 seconds
+
+  if (millis() - lastLCD < 1500)
+    return;
+
+  lastLCD = millis();
+
+
+  lcd.clear();
+
+
+  // =================================================
+  // PAGE 0 - CELL VOLTAGES
+  // =================================================
+
+  if (page == 0)
+  {
+    lcd.setCursor(0, 0);
+
+    lcd.print("C1:");
+    lcd.print(v1 / 1000);
+    lcd.print(".");
+    lcd.print((v1 % 1000) / 100);
+
+
+    lcd.print(" C2:");
+    lcd.print(v2 / 1000);
+    lcd.print(".");
+    lcd.print((v2 % 1000) / 100);
+
+
+    lcd.setCursor(0, 1);
+
+    lcd.print("C3:");
+    lcd.print(v3 / 1000);
+    lcd.print(".");
+    lcd.print((v3 % 1000) / 100);
+
+    lcd.print("V");
+
+
+    page = 1;
+  }
+
+
+  // =================================================
+  // PAGE 1 - TEMPERATURE + SOC
+  // =================================================
+
+  else if (page == 1)
+  {
+    lcd.setCursor(0, 0);
+
+    lcd.print("TEMP:");
+    lcd.print(tempC);
+    lcd.print("C");
+
+
+    lcd.setCursor(0, 1);
+
+    lcd.print("SOC:");
+    lcd.print(soc);
+    lcd.print("%");
+
+
+    page = 2;
+  }
+
+
+  // =================================================
+  // PAGE 2 - STATUS
+  // =================================================
+
+  else
+  {
+    lcd.setCursor(0, 0);
+
+
+    if (state == SAFE)
+    {
+      lcd.print("STATUS: SAFE");
+    }
+
+    else if (state == CHARGE)
+    {
+      lcd.print("STATUS: CHARGE");
+    }
+
+    else if (state == DISCHARGE)
+    {
+      lcd.print("STATUS: DISCHG");
+    }
+
+    else
+    {
+      lcd.print("!!! FAULT !!!");
+    }
+
+
+    lcd.setCursor(0, 1);
+
+
+    // -------------------------
+    // FAULT MESSAGE
+    // -------------------------
+
+    if (state == FAULT)
+    {
+      if (ovFault)
+      {
+        lcd.print("OVERVOLTAGE");
+      }
+
+      else if (uvFault)
+      {
+        lcd.print("UNDERVOLTAGE");
+      }
+
+      else if (tempFault)
+      {
+        lcd.print("OVER TEMP");
+      }
+
+      else if (balanceFault)
+      {
+        lcd.print("CELL IMBALANCE");
+      }
+    }
+
+
+    // -------------------------
+    // NORMAL STATUS
+    // -------------------------
+
+    else
+    {
+      lcd.print("IMBAL:");
+      lcd.print(imbalance);
+      lcd.print("mV");
+    }
+
+
+    page = 0;
+  }
+}
