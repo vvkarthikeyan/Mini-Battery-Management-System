@@ -1,0 +1,121 @@
+{
+  "version": 1,
+  "author": "V.V.Karthikeyan",
+  "editor": "wokwi",
+  "parts": [
+    {
+      "type": "board-st-nucleo-c031c6",
+      "id": "nucleo",
+      "top": 164.03,
+      "left": -48.98,
+      "attrs": {}
+    },
+    { "type": "wokwi-potentiometer", "id": "pot1", "top": -222.1, "left": 182.2, "attrs": {} },
+    { "type": "wokwi-potentiometer", "id": "pot2", "top": -193.3, "left": 489.4, "attrs": {} },
+    { "type": "wokwi-potentiometer", "id": "pot3", "top": -212.5, "left": 777.4, "attrs": {} },
+    {
+      "type": "wokwi-ntc-temperature-sensor",
+      "id": "ntc1",
+      "top": 492.2,
+      "left": -384.6,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "btn1",
+      "top": 227,
+      "left": 441.6,
+      "attrs": { "color": "green", "xray": "1" }
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "btn2",
+      "top": 227,
+      "left": 604.8,
+      "attrs": { "color": "red", "xray": "1" }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led1",
+      "top": 370.8,
+      "left": 714.2,
+      "attrs": { "color": "limegreen" }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led2",
+      "top": 370.8,
+      "left": 925.4,
+      "attrs": { "color": "red" }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led3",
+      "top": 361.2,
+      "left": 819.8,
+      "attrs": { "color": "blue" }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r1",
+      "top": 474.35,
+      "left": 633.6,
+      "attrs": { "value": "200" }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r2",
+      "top": 522.35,
+      "left": 720,
+      "attrs": { "value": "1000" }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r3",
+      "top": 579.95,
+      "left": 806.4,
+      "attrs": { "value": "200" }
+    },
+    {
+      "type": "wokwi-lcd1602",
+      "id": "lcd1",
+      "top": 150.4,
+      "left": 716,
+      "attrs": { "pins": "i2c" }
+    }
+  ],
+  "connections": [
+    [ "$serialMonitor:TX", "nucleo:PA3", "", [] ],
+    [ "$serialMonitor:RX", "nucleo:PA2", "", [] ],
+    [ "pot3:VCC", "nucleo:3V3.2", "red", [ "v192", "h-912.8", "v211.2", "h115.2" ] ],
+    [ "pot2:VCC", "nucleo:3V3.2", "red", [ "v38.4", "h-778.4", "v364.8", "h19.2" ] ],
+    [ "pot2:GND", "nucleo:GND.2", "black", [ "v28.8", "h-787.2", "v288" ] ],
+    [ "pot3:GND", "nucleo:GND.2", "black", [ "v182.4", "h-902.4", "v182.4" ] ],
+    [ "pot1:GND", "nucleo:GND.2", "black", [ "v57.6", "h-614.4", "v345.6" ] ],
+    [ "pot1:VCC", "nucleo:3V3.2", "red", [ "v38.4", "h-749.6", "v403.2" ] ],
+    [ "pot1:SIG", "nucleo:PA0", "green", [ "v48", "h-720.4", "v451.2" ] ],
+    [ "pot2:SIG", "nucleo:PA1", "green", [ "v67.2", "h-864.4", "v412.8" ] ],
+    [ "pot3:SIG", "nucleo:PA4", "green", [ "v134.4", "h-970", "v355.2" ] ],
+    [ "ntc1:GND", "nucleo:GND.2", "black", [ "h163.2", "v-201.6" ] ],
+    [ "ntc1:VCC", "nucleo:3V3.2", "red", [ "h144", "v-172.8" ] ],
+    [ "nucleo:D5", "ntc1:OUT", "green", [ "h-50.35", "v115.2" ] ],
+    [ "btn1:1.l", "nucleo:PA10", "green", [ "h-163.2", "v201.6" ] ],
+    [ "nucleo:GND.8", "btn1:2.r", "black", [ "h0" ] ],
+    [ "nucleo:PB3", "btn2:1.l", "green", [ "h381.35", "v-192" ] ],
+    [ "btn2:2.r", "nucleo:GND.8", "black", [ "h29", "v57.8" ] ],
+    [ "led1:A", "r1:2", "green", [ "v67.2", "h-38.4" ] ],
+    [ "r2:2", "led3:A", "green", [ "v0", "h75.6" ] ],
+    [ "r3:2", "led2:A", "green", [ "v0", "h94.8" ] ],
+    [ "nucleo:GND.8", "led1:C", "black", [ "h477.35", "v105.6" ] ],
+    [ "led3:C", "nucleo:GND.8", "black", [ "v0", "h-57.2", "v-96" ] ],
+    [ "led2:C", "nucleo:GND.8", "black", [ "v0", "h-76.4", "v-96" ] ],
+    [ "nucleo:PA7", "r1:1", "green", [ "h0" ] ],
+    [ "nucleo:PC7", "r3:1", "green", [ "h64.55", "v220.8" ] ],
+    [ "nucleo:PB0.1", "r2:1", "green", [ "h410.15", "v86.4" ] ],
+    [ "lcd1:GND", "nucleo:GND.2", "black", [ "h-470.4", "v-134.4", "h-326.4", "v268.8" ] ],
+    [ "lcd1:VCC", "nucleo:3V3.2", "red", [ "h-489.6", "v-134.3", "h-297.6", "v297.6" ] ],
+    [ "nucleo:PB9", "lcd1:SDA", "green", [ "h54.95", "v-105.6" ] ],
+    [ "nucleo:PB8", "lcd1:SCL", "green", [ "h74.15", "v-76.8" ] ]
+  ],
+  "dependencies": {}
+}
